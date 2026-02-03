@@ -1,0 +1,13 @@
+{
+  "name": "starttech-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install": "npm install",
+    "build": "echo \"build step placeholder\""
+  },
+  "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
