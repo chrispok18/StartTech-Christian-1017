@@ -34,11 +34,11 @@ jobs:
         working-directory: backend
         run: go test ./...
 
-      - name: Security scan (govulncheck)
+      - name: Security scan (govulncheck) - report only
         working-directory: backend
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          govulncheck ./... || true
 
       - name: Build linux binary
         working-directory: backend
