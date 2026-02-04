@@ -1,0 +1,66 @@
+name: Backend CI/CD (Go -> EC2 ASG)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci-cd.yml"
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: eu-west-1
+      ARTIFACT_BUCKET: starttech-prod-backend-artifacts-033504885956
+      ARTIFACT_KEY: backend/app
+      ASG_NAME: starttech-prod-asg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Test
+        working-directory: backend
+        run: go test ./...
+
+      - name: Security scan (govulncheck)
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Build linux binary
+        working-directory: backend
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o app .
+          ls -la app
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          # Use repo secrets OR OIDC role (we’ll pick one next)
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Upload artifact to S3
+        run: |
+          aws s3 cp backend/app "s3://${ARTIFACT_BUCKET}/${ARTIFACT_KEY}" --region "${AWS_REGION}"
+          aws s3 ls "s3://${ARTIFACT_BUCKET}/backend/" --region "${AWS_REGION}"
+
+      - name: Trigger ASG Instance Refresh
+        run: |
+          aws autoscaling start-instance-refresh \
+            --region "${AWS_REGION}" \
+            --auto-scaling-group-name "${ASG_NAME}"
